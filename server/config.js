@@ -43,6 +43,8 @@ export function buildConfig(env = process.env) {
     maxTokens: num(env.CLAUDE_MAX_TOKENS, 16000),
     // fallbacks: "default" مدعوم على claude-opus-5 عبر واجهة beta
     serverFallbacks: bool(env.CLAUDE_SERVER_FALLBACKS, model === "claude-opus-5"),
+    // ضغط سياق المحادثات الطويلة على خادم Anthropic (beta) — معطّل افتراضيًا
+    compaction: bool(env.CLAUDE_COMPACTION, false),
     // البحث عبر الإنترنت (أداة web_search من Anthropic؛ يجب تفعيلها في Console للمؤسسة)
     webSearchEnabled: bool(env.WEB_SEARCH_ENABLED, false),
     webSearchMaxUses: num(env.WEB_SEARCH_MAX_USES, 5),

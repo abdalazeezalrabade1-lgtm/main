@@ -31,7 +31,7 @@ export function extractSources(content) {
   return [...out.values()];
 }
 
-export function createAgent({ db, config, services, tools, logger, client }) {
+export function createAgent({ db, config, services, tools, logger, client, integrations = [] }) {
   const { conversations, approvals, memory, settings } = services;
   const active = new Map(); // runId -> { controller, conversationId }
 
@@ -40,11 +40,15 @@ export function createAgent({ db, config, services, tools, logger, client }) {
     db.prepare("SELECT COALESCE(SUM(cost_usd),0) AS c FROM runs WHERE started_at >= ?").get(new Date(Date.now() - 86_400_000).toISOString()).c;
 
   function streamRequest(params, signal) {
-    if (config.serverFallbacks) {
-      return client.beta.messages.stream({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }, { signal });
-    }
+    const betas = [];
+    const extra = {};
+    if (config.serverFallbacks) { betas.push("server-side-fallback-2026-07-01"); extra.fallbacks = "default"; }
+    if (config.compaction) { betas.push("compact-2026-01-12"); extra.context_management = { edits: [{ type: "compact_20260112" }] }; }
+    if (betas.length) return client.beta.messages.stream({ ...params, ...extra, betas }, { signal });
     return client.messages.stream(params, { signal });
   }
+
+  const LARGE_HISTORY_CHARS = 500_000; // ≈ 150 ألف توكن تقريبًا
 
   /**
    * يشغّل الوكيل على رسالة مستخدم. يعيد { runId, status, text, error }.
@@ -72,6 +76,14 @@ export function createAgent({ db, config, services, tools, logger, client }) {
     logger.info("run", `بدء تشغيل (${source}) للمحادثة #${conversationId}`, { limits }, runId);
 
     const totals = { steps: 0, input: 0, output: 0, searches: 0, cost: 0 };
+    if (!config.compaction) {
+      const size = JSON.stringify(conversations.history(conversationId)).length;
+      if (size > LARGE_HISTORY_CHARS) {
+        const note = "هذه المحادثة طويلة جدًا: كل رسالة تعيد إرسال السجل كاملًا فترتفع التكلفة وقد تتجاوز حد السياق. ابدأ محادثة جديدة (الذاكرة الدائمة تنتقل تلقائيًا)، أو فعّل CLAUDE_COMPACTION=true.";
+        logger.warn("context", note, { chars: size }, runId);
+        emit({ type: "notice", message: note });
+      }
+    }
     const saveTotals = (status, error = null, finished = false) =>
       db.prepare("UPDATE runs SET status=?, steps=?, input_tokens=?, output_tokens=?, web_searches=?, cost_usd=?, error=?, finished_at=? WHERE id=?")
         .run(status, totals.steps, totals.input, totals.output, totals.searches, totals.cost, error, finished ? now() : null, runId);
@@ -103,7 +115,7 @@ export function createAgent({ db, config, services, tools, logger, client }) {
           output_config: { effort: config.effort },
           system: [
             { type: "text", text: STATIC_SYSTEM, cache_control: { type: "ephemeral" } },
-            { type: "text", text: dynamicSystem({ config, memoryBlock: memory.promptBlock(), source }) },
+            { type: "text", text: dynamicSystem({ config, memoryBlock: memory.promptBlock(), source, integrations }) },
           ],
           tools: tools.definitions,
           messages: conversations.history(conversationId),
@@ -173,6 +185,8 @@ export function createAgent({ db, config, services, tools, logger, client }) {
           try {
             if (!tools.has(tu.name)) throw new Error(`أداة غير متاحة: ${tu.name}`);
             if (tools.needsApproval(tu.name)) {
+              const invalid = tools.validate(tu.name, tu.input);
+              if (invalid) throw new Error(invalid);
               const summary = tools.summarize(tu.name, tu.input);
               const p = approvals.create({ runId, tool: tu.name, input: tu.input, summary });
               logger.info("approval_requested", summary, { pending_id: p.id }, runId);

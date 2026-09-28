@@ -110,6 +110,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .table th, .table td { border-bottom: 1px solid var(--border); padding: .45rem .5rem; text-align: start; vertical-align: top; }
 .table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .table select { padding: .15rem .3rem; }
+.approval-preview { margin-top: .4rem; font-size: .9rem; background: var(--surface-2); border-radius: 8px; padding: .5rem .7rem; }
+.email-body { white-space: pre-wrap; font-family: inherit; margin: .4rem 0 0; max-height: 320px; overflow-y: auto; }
 .logs td:nth-child(4) { max-width: 520px; overflow-wrap: anywhere; }
 .pill { font-size: .75rem; border-radius: 999px; padding: .05rem .5rem; background: var(--surface-2); white-space: nowrap; }
 .pill.urgent, .pill.error, .pill.failed, .pill.overdue { background: var(--danger-soft); color: var(--danger); }

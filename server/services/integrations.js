@@ -1,5 +1,5 @@
 // حالة التكاملات. ما لم يُربط فعليًا يظهر "غير موصول" — لا أزرار شكلية ولا بيانات تجريبية.
-export function integrationsStatus(config, scheduler) {
+export function integrationsStatus(config, scheduler, integrations = []) {
   return [
     {
       id: "claude", name: "Claude API", connected: config.hasApiKey,
@@ -17,10 +17,9 @@ export function integrationsStatus(config, scheduler) {
         ? "يعمل داخل عملية الخادم. يتوقف بتوقف الخادم، والمواعيد الفائتة تُسجَّل ولا تُنفَّذ بأثر رجعي"
         : "متوقف — المهام المجدولة لن تعمل",
     },
-    { id: "files", name: "تحليل الملفات", connected: config.hasApiKey, detail: "PDF، صور، TXT/MD/CSV/JSON/HTML. ملفات Excel/Word غير مدعومة مباشرة بعد (صدّرها CSV/PDF)" },
-    { id: "email", name: "البريد الإلكتروني", connected: false, detail: "غير موصول. يتطلب إضافة أداة إرسال (SMTP/Gmail API) مع بوابة موافقة" },
+    { id: "files", name: "تحليل الملفات", connected: config.hasApiKey, detail: "PDF، صور، Excel (xlsx)، Word (docx)، TXT/MD/CSV/JSON/HTML" },
+    ...integrations.map((i) => ({ id: i.id, name: i.name, connected: i.configured, detail: i.detail, testable: i.configured })),
     { id: "calendar", name: "التقويم (Google Calendar)", connected: false, detail: "غير موصول. المواعيد تُدار حاليًا داخل نظام المهام" },
-    { id: "store", name: "المتجر (سلة / Shopify)", connected: false, detail: "غير موصول. يتطلب مفتاح API للمتجر وأداة قراءة؛ أي تعديل على المتجر سيحتاج موافقتك" },
     { id: "messaging", name: "واتساب / Slack", connected: false, detail: "غير موصول. أي إرسال للآخرين سيمرّ عبر بوابة الموافقة" },
   ];
 }

@@ -15,6 +15,7 @@ import { makeConversations } from "./services/conversations.js";
 import { makeApprovals } from "./services/approvals.js";
 import { makeScheduler } from "./services/scheduler.js";
 import { integrationsStatus } from "./services/integrations.js";
+import { loadIntegrations } from "./integrations/index.js";
 import { buildTools } from "./agent/tools.js";
 import { createAgent, extractSources } from "./agent/agent.js";
 
@@ -52,7 +53,7 @@ function renderMessages(msgs) {
   return out;
 }
 
-export function createApp({ config, client, db: providedDb } = {}) {
+export function createApp({ config, client, db: providedDb, integrations } = {}) {
   const db = providedDb || openDb(config.dbPath);
   const logger = makeLogger(db);
   const settings = makeSettings(db, config.limits);
@@ -63,10 +64,11 @@ export function createApp({ config, client, db: providedDb } = {}) {
   const approvals = makeApprovals(db);
   const scheduler = makeScheduler(db, { timezone: config.timezone, enabled: config.schedulerEnabled, logger });
   const services = { memory, tasks, files, conversations, approvals, scheduler, settings };
-  const tools = buildTools({ services, config });
+  integrations ??= loadIntegrations(process.env);
+  const tools = buildTools({ services, config, integrations });
 
   if (client === undefined && config.hasApiKey) client = new Anthropic();
-  const agent = createAgent({ db, config, services, tools, logger, client: client || null });
+  const agent = createAgent({ db, config, services, tools, logger, client: client || null, integrations });
 
   // تشغيل المهام المجدولة عبر الوكيل مع سجل تنفيذ
   scheduler.setRunner(async (s) => {
@@ -119,7 +121,7 @@ export function createApp({ config, client, db: providedDb } = {}) {
       webSearch: config.webSearchEnabled,
       limits: settings.limits(),
       spentLast24hUsd: agent.spentLast24h(),
-      integrations: integrationsStatus(config, scheduler),
+      integrations: integrationsStatus(config, scheduler, integrations),
       activeRuns: agent.activeRuns(),
       tasks: tasks.summary(),
       pendingApprovals: approvals.list("pending").length,
@@ -131,6 +133,21 @@ export function createApp({ config, client, db: providedDb } = {}) {
     const l = settings.updateLimits(req.body);
     logger.info("settings", "تحديث الحدود", l);
     res.json(l);
+  });
+
+  // اختبار اتصال تكامل (طلب قراءة خفيف، دون أي تعديل)
+  api.post("/integrations/:name/test", async (req, res) => {
+    const integ = integrations.find((i) => i.id === req.params.name);
+    if (!integ) return res.status(404).json({ error: "تكامل غير معروف" });
+    if (!integ.configured) return res.status(400).json({ error: `${integ.name} غير موصول: ${integ.detail}` });
+    try {
+      const message = await integ.test();
+      logger.info("integration_test", `${integ.name}: ${message}`);
+      res.json({ ok: true, message });
+    } catch (e) {
+      logger.warn("integration_test", `${integ.name}: ${e.message}`);
+      res.status(502).json({ ok: false, error: e.message });
+    }
   });
 
   // ——— المحادثات
@@ -153,7 +170,7 @@ export function createApp({ config, client, db: providedDb } = {}) {
 
     let content;
     try {
-      content = fileIds.map((fid) => files.toContentBlock(Number(fid)));
+      content = await Promise.all(fileIds.map((fid) => files.toContentBlock(Number(fid))));
       const names = fileIds.map((fid) => { const f = files.get(Number(fid)); return `#${f.id} ${f.name}`; });
       const text = [String(message || "").trim(), names.length ? `(المرفقات: ${names.join("، ")})` : ""].filter(Boolean).join("\n\n");
       content.push({ type: "text", text });

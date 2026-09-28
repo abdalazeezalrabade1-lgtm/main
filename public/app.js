@@ -16,6 +16,8 @@
     level: { info: "معلومة", warn: "تحذير", error: "خطأ" },
   };
   const toolNames = {
+    salla_store_info: "سلة: معلومات المتجر", salla_orders_list: "سلة: الطلبات", salla_order_get: "سلة: تفاصيل طلب", salla_products_list: "سلة: المنتجات",
+    shopify_orders_list: "Shopify: الطلبات", shopify_products_list: "Shopify: المنتجات", email_send: "طلب إرسال بريد",
     memory_list: "قراءة الذاكرة", memory_save: "حفظ في الذاكرة", memory_update: "تعديل الذاكرة", memory_delete: "طلب حذف من الذاكرة",
     project_list: "قراءة المشاريع", project_create: "إنشاء مشروع", project_update: "تعديل مشروع",
     task_list: "قراءة المهام", task_create: "إنشاء مهمة", task_update: "تحديث مهمة", task_delete: "طلب حذف مهمة",
@@ -263,6 +265,11 @@
           break;
         }
         case "approval": loadStatus().catch(() => {}); break;
+        case "notice": {
+          const n = document.createElement("div"); n.className = "notice warn"; n.textContent = ev.message;
+          bubble.insertBefore(n, bubble.firstChild);
+          break;
+        }
         case "usage": $("#runInfo").textContent = `الخطوة ${ev.steps} · التكلفة التقديرية ${fmtUsd(ev.cost)}`; break;
         case "done": {
           if (!acc) mdEl.innerHTML = "";
@@ -463,10 +470,20 @@
   }));
 
   // ——— الموافقات
+  function approvalDetails(p) {
+    let input = {};
+    try { input = JSON.parse(p.input_json); } catch { /* تجاهل */ }
+    if (p.tool === "email_send") {
+      const arr = (v) => (Array.isArray(v) ? v.join("، ") : v || "");
+      return `<div class="approval-preview"><div><strong>إلى:</strong> <bdi>${esc(arr(input.to))}</bdi></div>${input.cc?.length ? `<div><strong>نسخة:</strong> <bdi>${esc(arr(input.cc))}</bdi></div>` : ""}
+        <div><strong>الموضوع:</strong> ${esc(input.subject || "")}</div><pre class="email-body">${esc(input.body || "")}</pre></div>`;
+    }
+    return `<details><summary class="small muted">المدخلات</summary><pre class="small" dir="ltr" style="white-space:pre-wrap">${esc(JSON.stringify(input, null, 2))}</pre></details>`;
+  }
   async function loadApprovals() {
     const list = await api("/api/approvals");
     const pending = list.filter((p) => p.status === "pending");
-    $("#pendingList").innerHTML = pending.map((p) => `<li data-id="${p.id}"><div class="body"><strong>#${p.id}</strong> ${esc(p.summary)}<div class="muted small">${fmtDate(p.created_at)} · الأداة: ${esc(p.tool)}</div></div>
+    $("#pendingList").innerHTML = pending.map((p) => `<li data-id="${p.id}"><div class="body"><strong>#${p.id}</strong> ${esc(p.summary)}<div class="muted small">${fmtDate(p.created_at)} · الأداة: ${esc(p.tool)}</div>${approvalDetails(p)}</div>
       <div class="row"><button class="btn small primary approve">موافقة وتنفيذ</button><button class="btn small reject">رفض</button></div></li>`).join("")
       || `<li class="muted small">لا توجد طلبات معلّقة</li>`;
     $("#decidedList").innerHTML = list.filter((p) => p.status !== "pending").slice(0, 50).map((p) => `<li><div class="body">${pill(p.status, L.approval[p.status])} ${esc(p.summary)}<div class="muted small">${fmtDate(p.decided_at)}</div></div></li>`).join("")
@@ -497,7 +514,15 @@
     const f = $("#limitsForm");
     for (const [k, v] of Object.entries(status.limits)) f.elements[k].value = v;
     $("#spendInfo").textContent = `التكلفة التقديرية آخر 24 ساعة: ${fmtUsd(status.spentLast24hUsd)}. النموذج: ${status.model}. الأرقام تقديرية من عدد التوكنات، والفاتورة الرسمية في Claude Console.`;
-    $("#integrationList").innerHTML = status.integrations.map((i) => `<li><div class="body"><strong>${esc(i.name)}</strong> ${i.connected ? pill("confirmed", "موصول") : pill("warn", "غير موصول")}<div class="muted small">${esc(i.detail)}</div></div></li>`).join("");
+    $("#integrationList").innerHTML = status.integrations.map((i) => `<li data-id="${esc(i.id)}"><div class="body"><strong>${esc(i.name)}</strong> ${i.connected ? pill("confirmed", "موصول") : pill("warn", "غير موصول")}<div class="muted small">${esc(i.detail)}</div><div class="small itest-result"></div></div>
+      ${i.testable ? `<button class="btn small itest">اختبار الاتصال</button>` : ""}</li>`).join("");
+    $$("#integrationList .itest").forEach((b) => b.addEventListener("click", async () => {
+      const li = b.closest("li"); const out = $(".itest-result", li);
+      b.disabled = true; out.textContent = "جارٍ الاختبار…"; out.style.color = "";
+      try { const r = await api(`/api/integrations/${li.dataset.id}/test`, { method: "POST" }); out.textContent = "✓ " + r.message; }
+      catch (e) { out.textContent = "✗ " + e.message; out.style.color = "var(--danger)"; }
+      finally { b.disabled = false; }
+    }));
   }
   $("#limitsForm").addEventListener("submit", guard(async (e) => {
     e.preventDefault();

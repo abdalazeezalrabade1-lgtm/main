@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { buildConfig } from "../server/config.js";
 import { createApp } from "../server/app.js";
+import { loadIntegrations } from "../server/integrations/index.js";
 
 export const PASSWORD = "test-password-123";
 
@@ -23,13 +24,13 @@ export function fakeClient(script) {
   return { calls, messages: { stream: makeStream }, beta: { messages: { stream: makeStream } } };
 }
 
-export async function startServer({ client = null, env = {}, withKey = true } = {}) {
+export async function startServer({ client = null, env = {}, withKey = true, integrations = loadIntegrations({}) } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-test-"));
   const config = buildConfig({
     APP_PASSWORD: PASSWORD, DATA_DIR: dataDir, CLAUDE_SERVER_FALLBACKS: "false",
     ANTHROPIC_API_KEY: withKey ? "sk-ant-test-0000000000000000" : "", ...env,
   });
-  const ctx = createApp({ config, client });
+  const ctx = createApp({ config, client, integrations });
   const server = await new Promise((r) => { const s = ctx.app.listen(0, "127.0.0.1", () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   let cookie = "";
