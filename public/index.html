@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>مساعد عبدالعزيز</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- شاشة الدخول -->
+  <section id="login" class="login hidden">
+    <form id="loginForm" class="card login-card">
+      <h1>مساعد عبدالعزيز</h1>
+      <p class="muted">أدخل كلمة المرور للمتابعة</p>
+      <input id="password" type="password" autocomplete="current-password" placeholder="كلمة المرور" required>
+      <button class="btn primary" type="submit">دخول</button>
+      <p id="loginError" class="error"></p>
+    </form>
+  </section>
+
+  <!-- التطبيق -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <button id="menuBtn" class="icon-btn only-mobile" aria-label="القائمة">☰</button>
+      <strong class="brand">مساعد عبدالعزيز</strong>
+      <span id="statusBadges" class="badges"></span>
+      <button id="logoutBtn" class="btn ghost small">خروج</button>
+    </header>
+
+    <nav id="nav" class="nav">
+      <button data-view="chat" class="active">💬 المحادثة</button>
+      <button data-view="tasks">✅ المهام والمشاريع</button>
+      <button data-view="memory">🧠 الذاكرة</button>
+      <button data-view="schedules">⏱ المجدولة</button>
+      <button data-view="files">📁 الملفات</button>
+      <button data-view="approvals">🛡 الموافقات <span id="approvalCount" class="count hidden"></span></button>
+      <button data-view="logs">📜 السجل</button>
+      <button data-view="settings">⚙️ الإعدادات والتكاملات</button>
+    </nav>
+
+    <main class="main">
+      <!-- المحادثة -->
+      <section id="view-chat" class="view chat-view">
+        <aside class="conv-list">
+          <button id="newConv" class="btn primary block">+ محادثة جديدة</button>
+          <label class="muted small"><input type="checkbox" id="showScheduled"> إظهار تشغيلات المجدولة</label>
+          <ul id="convList"></ul>
+        </aside>
+        <div class="chat">
+          <div id="messages" class="messages"></div>
+          <div id="runBar" class="runbar hidden">
+            <span id="runInfo">جارٍ التنفيذ…</span>
+            <button id="stopBtn" class="btn danger small">⏹ إيقاف المهمة</button>
+          </div>
+          <form id="chatForm" class="composer">
+            <div id="attachList" class="attach-list"></div>
+            <div class="composer-row">
+              <label class="icon-btn" title="إرفاق ملفات">📎<input id="fileInput" type="file" multiple hidden></label>
+              <textarea id="chatInput" rows="2" placeholder="اكتب طلبك… (Enter للإرسال، Shift+Enter لسطر جديد)"></textarea>
+              <button id="sendBtn" class="btn primary" type="submit">إرسال</button>
+            </div>
+            <p id="chatNotice" class="notice hidden"></p>
+          </form>
+        </div>
+      </section>
+
+      <!-- المهام -->
+      <section id="view-tasks" class="view hidden">
+        <div class="grid2">
+          <div class="card">
+            <h2>مهمة جديدة</h2>
+            <form id="taskForm" class="form">
+              <input name="title" placeholder="عنوان المهمة" required>
+              <textarea name="description" rows="2" placeholder="تفاصيل (اختياري)"></textarea>
+              <div class="row">
+                <select name="priority"><option value="urgent">عاجلة</option><option value="high">عالية</option><option value="medium" selected>متوسطة</option><option value="low">منخفضة</option></select>
+                <input name="due_at" type="datetime-local" title="الموعد">
+                <select name="project_id" class="project-select"><option value="">بلا مشروع</option></select>
+              </div>
+              <button class="btn primary">إضافة</button>
+            </form>
+          </div>
+          <div class="card">
+            <h2>المشاريع</h2>
+            <form id="projectForm" class="row">
+              <input name="name" placeholder="اسم مشروع جديد" required>
+              <button class="btn">إضافة</button>
+            </form>
+            <ul id="projectList" class="plain-list"></ul>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row between">
+            <h2>المهام</h2>
+            <div class="row">
+              <select id="taskFilter"><option value="">المفتوحة</option><option value="all">الكل</option><option value="todo">للتنفيذ</option><option value="in_progress">قيد التنفيذ</option><option value="blocked">متوقفة</option><option value="done">منجزة</option></select>
+            </div>
+          </div>
+          <div id="taskSummary" class="summary"></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>المهمة</th><th>الأولوية</th><th>الحالة</th><th>الموعد</th><th>المشروع</th><th></th></tr></thead><tbody id="taskRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- الذاكرة -->
+      <section id="view-memory" class="view hidden">
+        <div class="card">
+          <h2>إضافة إلى الذاكرة</h2>
+          <p class="muted small">لا تُحفظ كلمات المرور أو المفاتيح أو الأرقام السرية — يرفضها النظام تلقائيًا.</p>
+          <form id="memoryForm" class="form">
+            <textarea name="content" rows="2" placeholder="مثال: أفضّل التقارير المختصرة بجداول" required></textarea>
+            <div class="row">
+              <select name="category"><option value="preference">تفضيل</option><option value="project">مشروع</option><option value="decision">قرار</option><option value="fact">معلومة</option><option value="contact">جهة/عميل</option><option value="other">أخرى</option></select>
+              <select name="certainty"><option value="confirmed">مؤكدة</option><option value="inferred">استنتاج</option></select>
+              <button class="btn primary">حفظ</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="row between"><h2>محتوى الذاكرة</h2>
+            <div class="row"><input id="memorySearch" placeholder="بحث…"><select id="memoryFilter"><option value="">الكل</option><option value="confirmed">المؤكدة</option><option value="inferred">الاستنتاجات</option></select></div>
+          </div>
+          <ul id="memoryList" class="plain-list"></ul>
+        </div>
+      </section>
+
+      <!-- المجدولة -->
+      <section id="view-schedules" class="view hidden">
+        <div id="schedulerState" class="notice"></div>
+        <div class="card">
+          <h2>مهمة مجدولة جديدة</h2>
+          <form id="scheduleForm" class="form">
+            <input name="name" placeholder="الاسم — مثال: رصد المنتجات الرائجة" required>
+            <div class="row">
+              <input name="cron" placeholder="0 9 * * 0" title="تعبير cron: دقيقة ساعة يوم-الشهر شهر يوم-الأسبوع" required dir="ltr" class="ltr">
+              <select id="cronPreset"><option value="">قوالب جاهزة…</option><option value="0 9 * * *">يوميًا 9 صباحًا</option><option value="0 9 * * 0">كل أحد 9 صباحًا</option><option value="0 8 * * 1-5">أيام العمل 8 صباحًا</option><option value="0 */6 * * *">كل 6 ساعات</option><option value="0 10 1 * *">أول كل شهر 10 صباحًا</option></select>
+            </div>
+            <textarea name="prompt" rows="4" placeholder="التعليمات الكاملة للتشغيل — مثال: ابحث عن أكثر المنتجات رواجًا هذا الأسبوع في السعودية ضمن فئة الإلكترونيات الاستهلاكية، واذكر المصادر وتواريخها، واقترح 3 فرص تسويقية، واحفظ تقريرًا HTML." required></textarea>
+            <button class="btn primary">إنشاء</button>
+          </form>
+        </div>
+        <div class="card"><h2>المهام المجدولة</h2><ul id="scheduleList" class="plain-list"></ul></div>
+        <div class="card"><h2>سجل التنفيذ</h2><div class="table-wrap"><table class="table"><thead><tr><th>المهمة</th><th>الحالة</th><th>البداية</th><th>النتيجة</th></tr></thead><tbody id="scheduleRuns"></tbody></table></div></div>
+      </section>
+
+      <!-- الملفات -->
+      <section id="view-files" class="view hidden">
+        <div class="card">
+          <h2>رفع ملفات</h2>
+          <p class="muted small">المدعوم: PDF، صور (PNG/JPG/WEBP/GIF)، TXT، MD، CSV، TSV، JSON، HTML. ملفات Excel/Word: صدّرها CSV أو PDF.</p>
+          <input id="filesUpload" type="file" multiple>
+          <p id="uploadMsg" class="small"></p>
+        </div>
+        <div class="card"><h2>مخرجات الوكيل (تقارير ومستندات)</h2><ul id="outputList" class="plain-list"></ul></div>
+        <div class="card"><h2>الملفات المرفوعة</h2><ul id="uploadList" class="plain-list"></ul></div>
+      </section>
+
+      <!-- الموافقات -->
+      <section id="view-approvals" class="view hidden">
+        <div class="card">
+          <h2>طلبات بانتظار موافقتك</h2>
+          <p class="muted small">الإجراءات الحساسة (الحذف النهائي، وأي إرسال أو نشر أو تعديل خارجي مستقبلًا) لا تُنفَّذ إلا بعد موافقتك هنا.</p>
+          <ul id="pendingList" class="plain-list"></ul>
+        </div>
+        <div class="card"><h2>القرارات السابقة</h2><ul id="decidedList" class="plain-list"></ul></div>
+      </section>
+
+      <!-- السجل -->
+      <section id="view-logs" class="view hidden">
+        <div class="card">
+          <div class="row between"><h2>سجل الإجراءات والأخطاء</h2>
+            <div class="row"><select id="logLevel"><option value="">الكل</option><option value="error">أخطاء</option><option value="warn">تحذيرات</option><option value="info">معلومات</option></select><button id="refreshLogs" class="btn small">تحديث</button></div>
+          </div>
+          <div class="table-wrap"><table class="table logs"><thead><tr><th>الوقت</th><th>المستوى</th><th>النوع</th><th>الرسالة</th><th>تشغيل</th></tr></thead><tbody id="logRows"></tbody></table></div>
+        </div>
+        <div class="card"><h2>آخر التشغيلات والتكلفة</h2><div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>المصدر</th><th>الحالة</th><th>الخطوات</th><th>التكلفة التقديرية</th><th>البداية</th><th>الخطأ</th></tr></thead><tbody id="runRows"></tbody></table></div></div>
+      </section>
+
+      <!-- الإعدادات -->
+      <section id="view-settings" class="view hidden">
+        <div class="card">
+          <h2>حدود التشغيل</h2>
+          <form id="limitsForm" class="form">
+            <label>أقصى عدد خطوات لكل مهمة <input name="maxSteps" type="number" min="1" max="50" step="1"></label>
+            <label>أقصى تكلفة لكل مهمة ($) <input name="maxCostPerRunUsd" type="number" min="0.01" max="20" step="0.01"></label>
+            <label>الحد اليومي — آخر 24 ساعة ($) <input name="dailyCostLimitUsd" type="number" min="0.05" max="200" step="0.05"></label>
+            <button class="btn primary">حفظ</button>
+            <p id="limitsMsg" class="small"></p>
+          </form>
+          <p id="spendInfo" class="muted small"></p>
+        </div>
+        <div class="card"><h2>التكاملات</h2><ul id="integrationList" class="plain-list"></ul></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/markdown.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

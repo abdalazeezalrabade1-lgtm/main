@@ -1,0 +1,23 @@
+{
+  "name": "abdulaziz-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "وكيل شخصي عربي للأعمال والمبيعات والتسويق — Claude API + ذاكرة + مهام + جدولة",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
+    "hash-password": "node server/cli/hash-password.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "croner": "^10.0.1",
+    "express": "^5.2.1",
+    "multer": "^2.4.0"
+  }
+}
