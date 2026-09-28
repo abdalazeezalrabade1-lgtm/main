@@ -109,3 +109,29 @@ test("حساب التكلفة", () => {
   assert.equal(Number(c.toFixed(2)), 30.1);
   assert.ok(costOfUsage({ input_tokens: 1e6 }, "unknown-model") >= 10, "النموذج المجهول يُسعَّر بتحفّظ");
 });
+
+test("النسخ الاحتياطي: لقطة قابلة للفتح + نسخ الملفات + الاحتفاظ بآخر N", async () => {
+  const { runBackup } = await import("../server/services/backup.js");
+  const { DatabaseSync } = await import("node:sqlite");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const s = await startServer();
+  try {
+    await s.login();
+    await s.req("POST", "/api/tasks", { title: "مهمة محفوظة" });
+    const fd = new FormData();
+    fd.append("files", new Blob(["a,b"]), "x.csv");
+    await s.req("POST", "/api/files", fd);
+    const r1 = runBackup({ db: s.db, config: s.config, keep: 2 });
+    const copy = new DatabaseSync(path.join(r1.dir, "agent.db"));
+    assert.equal(copy.prepare("SELECT title FROM tasks").get().title, "مهمة محفوظة");
+    copy.close();
+    assert.equal(fs.readdirSync(path.join(r1.dir, "uploads")).filter((n) => n.endsWith(".csv")).length, 1);
+    await new Promise((r) => setTimeout(r, 1100));
+    runBackup({ db: s.db, config: s.config, keep: 2 });
+    await new Promise((r) => setTimeout(r, 1100));
+    const r3 = runBackup({ db: s.db, config: s.config, keep: 2 });
+    assert.equal(r3.removed.length, 1);
+    assert.equal(fs.readdirSync(s.config.backupDir).length, 2);
+  } finally { await s.close(); }
+});

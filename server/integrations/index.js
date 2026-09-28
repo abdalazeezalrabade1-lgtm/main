@@ -2,7 +2,8 @@
 import { sallaIntegration } from "./salla.js";
 import { shopifyIntegration } from "./shopify.js";
 import { emailIntegration } from "./email.js";
+import { telegramNotifier } from "./telegram.js";
 
 export function loadIntegrations(env = process.env, opts = {}) {
-  return [sallaIntegration(env), shopifyIntegration(env), emailIntegration(env, opts.email)];
+  return [sallaIntegration(env), shopifyIntegration(env), emailIntegration(env, opts.email), telegramNotifier(env)];
 }

@@ -1,0 +1,8 @@
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy agent:3000 {
+		# بث الردود (SSE) فورًا دون تخزين مؤقت
+		flush_interval -1
+	}
+	header Strict-Transport-Security "max-age=31536000"
+}

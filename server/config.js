@@ -31,11 +31,16 @@ export function buildConfig(env = process.env) {
     dbPath: path.join(dataDir, "agent.db"),
     uploadsDir: path.join(dataDir, "uploads"),
     outputsDir: path.join(dataDir, "outputs"),
+    backupDir: path.resolve(ROOT, env.BACKUP_DIR || path.join(dataDir, "backups")),
+    backupCron: env.BACKUP_CRON || "",
+    backupKeep: num(env.BACKUP_KEEP, 14),
     // المصادقة
     appPassword: env.APP_PASSWORD || "",
     appPasswordHash: env.APP_PASSWORD_HASH || "",
     sessionTtlHours: num(env.SESSION_TTL_HOURS, 72),
     secureCookies: bool(env.SECURE_COOKIES, false),
+    // عناوين البروكسي الموثوقة لقراءة IP العميل الحقيقي (مهم لتقييد محاولات الدخول خلف Caddy/Nginx)
+    trustProxy: env.TRUST_PROXY || "loopback",
     // Claude
     hasApiKey: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN),
     model,

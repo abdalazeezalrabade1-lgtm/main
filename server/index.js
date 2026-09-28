@@ -1,6 +1,7 @@
 import { loadDotEnv, buildConfig } from "./config.js";
 import { authConfigured } from "./auth.js";
 import { createApp } from "./app.js";
+import { scheduleBackups } from "./services/backup.js";
 
 loadDotEnv();
 const config = buildConfig();
@@ -15,8 +16,10 @@ if (!["127.0.0.1", "localhost", "::1"].includes(config.host) && !config.secureCo
 }
 if (!config.hasApiKey) console.warn("⚠️  ANTHROPIC_API_KEY غير مضبوط: الواجهة والذاكرة والمهام تعمل، لكن المحادثة مع الوكيل معطّلة.");
 
-const { app, scheduler, logger } = createApp({ config });
+const { app, scheduler, logger, db } = createApp({ config });
 scheduler.start();
+let backupJob = null;
+try { backupJob = scheduleBackups({ db, config, logger }); } catch (e) { console.error(`❌ BACKUP_CRON غير صالح: ${e.message}`); }
 
 const server = app.listen(config.port, config.host, () => {
   console.log(`✅ الوكيل يعمل على http://${config.host}:${config.port}  (النموذج: ${config.model}، البحث: ${config.webSearchEnabled ? "مفعّل" : "معطّل"})`);
@@ -26,6 +29,7 @@ const server = app.listen(config.port, config.host, () => {
 function shutdown(sig) {
   logger.info("server", `إيقاف الخادم (${sig}) — المهام المجدولة لن تعمل حتى إعادة التشغيل`);
   scheduler.stop();
+  backupJob?.stop();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 5000).unref();
 }

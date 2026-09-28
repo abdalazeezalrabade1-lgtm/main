@@ -5,4 +5,5 @@ if (!pw || pw.length < 10) {
   console.error("أدخل كلمة مرور لا تقل عن 10 أحرف: npm run hash-password -- \"...\"");
   process.exit(1);
 }
-console.log(`APP_PASSWORD_HASH=${hashPassword(pw)}`);
+// علامات الاقتباس المفردة تمنع docker compose من تفسير $ كمتغير
+console.log(`APP_PASSWORD_HASH='${hashPassword(pw)}'`);

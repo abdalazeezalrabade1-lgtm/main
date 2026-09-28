@@ -65,10 +65,14 @@ export function createApp({ config, client, db: providedDb, integrations } = {})
   const scheduler = makeScheduler(db, { timezone: config.timezone, enabled: config.schedulerEnabled, logger });
   const services = { memory, tasks, files, conversations, approvals, scheduler, settings };
   integrations ??= loadIntegrations(process.env);
+  const notifier = integrations.find((i) => i.id === "telegram");
+  notifier?.attachLogger?.(logger);
+  const notify = notifier?.configured ? notifier : null;
+  if (notify) scheduler.setOnMissed((s, when) => notify.missed(s, when));
   const tools = buildTools({ services, config, integrations });
 
   if (client === undefined && config.hasApiKey) client = new Anthropic();
-  const agent = createAgent({ db, config, services, tools, logger, client: client || null, integrations });
+  const agent = createAgent({ db, config, services, tools, logger, client: client || null, integrations, notify });
 
   // تشغيل المهام المجدولة عبر الوكيل مع سجل تنفيذ
   scheduler.setRunner(async (s) => {
@@ -76,6 +80,7 @@ export function createApp({ config, client, db: providedDb, integrations } = {})
       const msg = "Claude API غير مهيأ (ANTHROPIC_API_KEY مفقود) — لم يُنفَّذ التشغيل";
       db.prepare("INSERT INTO schedule_runs (schedule_id, status, error, started_at, finished_at) VALUES (?, 'failed', ?, ?, ?)").run(s.id, msg, now(), now());
       logger.error("scheduler", `${msg} (#${s.id})`);
+      notify?.scheduleResult(s, { status: "failed", error: msg });
       return { status: "failed", error: msg };
     }
     const conv = conversations.create(`⏱ ${s.name} — ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "schedule");
@@ -84,17 +89,19 @@ export function createApp({ config, client, db: providedDb, integrations } = {})
       const r = await agent.run({ conversationId: conv.id, userContent: [{ type: "text", text: s.prompt }], source: "schedule" });
       db.prepare("UPDATE schedule_runs SET run_id=?, status=?, summary=?, error=?, finished_at=? WHERE id=?")
         .run(r.runId, r.status, (r.text || "").slice(0, 4000), r.error, now(), srId);
+      await notify?.scheduleResult(s, { ...r, conversation_id: conv.id });
       return { schedule_run_id: srId, conversation_id: conv.id, ...r };
     } catch (e) {
       db.prepare("UPDATE schedule_runs SET status='failed', error=?, finished_at=? WHERE id=?").run(e.message, now(), srId);
       logger.error("scheduler", `فشل التشغيل المجدول #${s.id}: ${e.message}`);
+      await notify?.scheduleResult(s, { status: "failed", error: e.message, conversation_id: conv.id });
       return { schedule_run_id: srId, conversation_id: conv.id, status: "failed", error: e.message };
     }
   });
 
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", "loopback");
+  app.set("trust proxy", config.trustProxy);
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");

@@ -37,3 +37,21 @@ test("تجزئة كلمة المرور scrypt", () => {
   assert.ok(!verifyPassword("wrong", { appPasswordHash: h }));
   assert.ok(!verifyPassword("", { appPassword: "" }));
 });
+
+test("سطر hash-password يُقرأ حرفيًا من .env (علامات اقتباس تحمي $)", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { loadDotEnv } = await import("../server/config.js");
+  const line = execFileSync(process.execPath, ["server/cli/hash-password.js", "كلمة-مرور-قوية-123"], { encoding: "utf8" }).trim();
+  assert.match(line, /^APP_PASSWORD_HASH='scrypt\$[0-9a-f]+\$[0-9a-f]+'$/);
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "env-")), ".env");
+  fs.writeFileSync(f, line + "\n");
+  const before = process.env.APP_PASSWORD_HASH;
+  delete process.env.APP_PASSWORD_HASH;
+  loadDotEnv(f);
+  const hash = process.env.APP_PASSWORD_HASH;
+  if (before === undefined) delete process.env.APP_PASSWORD_HASH; else process.env.APP_PASSWORD_HASH = before;
+  assert.ok(verifyPassword("كلمة-مرور-قوية-123", { appPasswordHash: hash }));
+});

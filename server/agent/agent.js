@@ -31,7 +31,7 @@ export function extractSources(content) {
   return [...out.values()];
 }
 
-export function createAgent({ db, config, services, tools, logger, client, integrations = [] }) {
+export function createAgent({ db, config, services, tools, logger, client, integrations = [], notify = null }) {
   const { conversations, approvals, memory, settings } = services;
   const active = new Map(); // runId -> { controller, conversationId }
 
@@ -47,6 +47,11 @@ export function createAgent({ db, config, services, tools, logger, client, integ
     if (betas.length) return client.beta.messages.stream({ ...params, ...extra, betas }, { signal });
     return client.messages.stream(params, { signal });
   }
+
+  // التشغيلات المجدولة لا تستطيع إنشاء أو تعديل أو حذف مهام مجدولة (منع التكاثر الذاتي والتكلفة غير المتوقعة)
+  const SCHEDULE_BLOCKED = new Set(["schedule_create", "schedule_update", "schedule_delete"]);
+  const toolsFor = (source) => (source === "schedule" ? tools.definitions.filter((t) => !SCHEDULE_BLOCKED.has(t.name)) : tools.definitions);
+  const allowed = (source, name) => tools.has(name) && !(source === "schedule" && SCHEDULE_BLOCKED.has(name));
 
   const LARGE_HISTORY_CHARS = 500_000; // ≈ 150 ألف توكن تقريبًا
 
@@ -117,7 +122,7 @@ export function createAgent({ db, config, services, tools, logger, client, integ
             { type: "text", text: STATIC_SYSTEM, cache_control: { type: "ephemeral" } },
             { type: "text", text: dynamicSystem({ config, memoryBlock: memory.promptBlock(), source, integrations }) },
           ],
-          tools: tools.definitions,
+          tools: toolsFor(source),
           messages: conversations.history(conversationId),
         };
 
@@ -183,7 +188,7 @@ export function createAgent({ db, config, services, tools, logger, client, integ
           }
           emit({ type: "tool", name: tu.name, input: tu.input, status: "running" });
           try {
-            if (!tools.has(tu.name)) throw new Error(`أداة غير متاحة: ${tu.name}`);
+            if (!allowed(source, tu.name)) throw new Error(`أداة غير متاحة في هذا السياق: ${tu.name}`);
             if (tools.needsApproval(tu.name)) {
               const invalid = tools.validate(tu.name, tu.input);
               if (invalid) throw new Error(invalid);
@@ -191,6 +196,7 @@ export function createAgent({ db, config, services, tools, logger, client, integ
               const p = approvals.create({ runId, tool: tu.name, input: tu.input, summary });
               logger.info("approval_requested", summary, { pending_id: p.id }, runId);
               emit({ type: "approval", pending: p });
+              notify?.approval(p, source);
               emit({ type: "tool", name: tu.name, status: "pending_approval", result: `طلب موافقة #${p.id}` });
               results.push({
                 type: "tool_result", tool_use_id: tu.id,

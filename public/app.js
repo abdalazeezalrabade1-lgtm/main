@@ -59,7 +59,7 @@
     try {
       await api("/api/login", { method: "POST", body: { password: $("#password").value } });
       $("#password").value = "";
-      showApp(); boot();
+      showApp(); boot(); openFromHash();
     } catch (err) { $("#loginError").textContent = err.message; }
   });
   $("#logoutBtn").addEventListener("click", guard(async () => { await api("/api/logout", { method: "POST" }); showLogin(); }));
@@ -531,6 +531,17 @@
     $("#limitsMsg").textContent = "حُفظت الحدود ✓"; loadStatus();
   }));
 
+  // روابط مباشرة من الإشعارات: #approvals أو #conv-123
+  function openFromHash() {
+    const h = location.hash.slice(1);
+    if (!h) return;
+    const m = h.match(/^conv-(\d+)$/);
+    if (m) { $("#showScheduled").checked = true; go("chat"); openConversation(Number(m[1])); }
+    else if ($(`#nav button[data-view="${CSS.escape(h)}"]`)) go(h);
+    history.replaceState(null, "", location.pathname);
+  }
+  window.addEventListener("hashchange", openFromHash);
+
   // ——— الإقلاع
   function boot() {
     loadStatus().catch((e) => toast(e.message, true));
@@ -540,6 +551,6 @@
   }
   api("/api/me").then((me) => {
     if (!me.authConfigured) { showLogin(); $("#loginError").textContent = "لم تُضبط كلمة مرور على الخادم (APP_PASSWORD)."; return; }
-    if (me.authenticated) { showApp(); boot(); } else showLogin();
+    if (me.authenticated) { showApp(); boot(); openFromHash(); } else showLogin();
   }).catch(() => showLogin());
 })();

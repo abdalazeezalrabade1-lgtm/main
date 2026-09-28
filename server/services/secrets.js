@@ -49,7 +49,7 @@ export function redact(value) {
   let s = typeof value === "string" ? value : JSON.stringify(value);
   for (const p of PATTERNS) s = s.replace(p.re, "[REDACTED]");
   for (const c of luhnCardNumbers(s)) s = s.replace(c, "[REDACTED_CARD]");
-  for (const k of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "APP_PASSWORD", "SALLA_ACCESS_TOKEN", "SHOPIFY_ACCESS_TOKEN", "SHOPIFY_CLIENT_SECRET", "SMTP_PASS"]) {
+  for (const k of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "APP_PASSWORD", "SALLA_ACCESS_TOKEN", "SHOPIFY_ACCESS_TOKEN", "SHOPIFY_CLIENT_SECRET", "SMTP_PASS", "TELEGRAM_BOT_TOKEN"]) {
     const v = process.env[k];
     if (v && v.length >= 6) s = s.split(v).join("[REDACTED]");
   }

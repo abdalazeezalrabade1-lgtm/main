@@ -1,0 +1,37 @@
+# تشغيل دائم مع HTTPS تلقائي (Caddy + Let's Encrypt).
+# المتطلبات: خادم بعنوان عام، نطاق يشير إليه (DNS A record)، والمنفذان 80 و 443 مفتوحان.
+# الاستخدام: ضع DOMAIN و بقية القيم في .env ثم: docker compose up -d --build
+services:
+  agent:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      SECURE_COOKIES: "true"
+      TRUST_PROXY: uniquelocal
+      DATA_DIR: /app/data
+    volumes:
+      - agent-data:/app/data
+    # لا يُنشر المنفذ 3000 للخارج — الوصول عبر Caddy فقط
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [agent]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?ضع DOMAIN في .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  agent-data:
+  caddy-data:
+  caddy-config:

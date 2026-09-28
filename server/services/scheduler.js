@@ -29,6 +29,7 @@ export function validateCron(expr, timezone) {
 export function makeScheduler(db, { timezone, enabled, logger }) {
   const jobs = new Map();
   let runner = null; // يُضبط لاحقًا: async (schedule) => void
+  let onMissed = null;
   let started = false;
   const get = (id) => db.prepare("SELECT * FROM schedules WHERE id = ?").get(id);
 
@@ -53,6 +54,7 @@ export function makeScheduler(db, { timezone, enabled, logger }) {
 
   return {
     setRunner(fn) { runner = fn; },
+    setOnMissed(fn) { onMissed = fn; },
     get isRunning() { return started; },
     get enabled() { return enabled; },
     start() {
@@ -65,6 +67,7 @@ export function makeScheduler(db, { timezone, enabled, logger }) {
           db.prepare("INSERT INTO schedule_runs (schedule_id, status, error, started_at, finished_at) VALUES (?, 'missed', ?, ?, ?)")
             .run(s.id, `فات الموعد ${s.next_run_at} لأن الخادم كان متوقفًا`, s.next_run_at, t);
           logger.warn("scheduler", `موعد فائت للمهمة المجدولة #${s.id} (${s.name}) — الخادم كان متوقفًا`);
+          Promise.resolve(onMissed?.(s, s.next_run_at)).catch(() => {});
         }
         schedule(s);
       }
